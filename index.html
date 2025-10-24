@@ -49,12 +49,12 @@
           <strong>Categories:</strong>
           <span id="category-count">Loading...</span>
         </p>
-        <p>
-          <em
-            >Click on markers to view details<br />Click on boundaries to filter
-            data within that area</em
-          >
-        </p>
+        <div class="info-instructions">
+          <strong>Instructions:</strong><br />
+          • Click on markers to view business details<br />
+          • Click on boundaries to filter data by area<br />
+          • Use chart segments to filter by category
+        </div>
       </div>
 
       <div class="filter-controls">
@@ -119,6 +119,9 @@
       <div class="legend-header">Map Legend & Statistics</div>
       <div class="chart-section">
         <div class="chart-title">Business Categories Distribution</div>
+        <div class="chart-instructions">
+          <em>💡 Click on chart segments to filter map data by category</em>
+        </div>
         <div id="categoryChart" class="chart"></div>
       </div>
     </div>

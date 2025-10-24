@@ -2,31 +2,35 @@ body {
   margin: 0;
   padding: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f5f5;
+  background-color: #f8f9fa;
+  line-height: 1.6;
 }
 
 .header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2c3e50;
   color: white;
-  padding: 20px;
+  padding: 24px 20px;
   text-align: center;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid #34495e;
 }
 
 .header h1 {
   margin: 0;
   font-size: 2.5em;
-  font-weight: 300;
+  font-weight: 400;
+  letter-spacing: -0.5px;
 }
 
 .header p {
-  margin: 10px 0 0 0;
+  margin: 8px 0 0 0;
   opacity: 0.9;
   font-size: 1.1em;
+  font-weight: 300;
 }
 
 .map-container {
-  height: calc(100vh - 126px);
+  height: calc(100vh - 130px);
   margin: 0;
   position: relative;
 }
@@ -60,6 +64,22 @@ body {
   color: #666;
 }
 
+.info-instructions {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #495057;
+}
+
+.info-instructions strong {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
 .loading {
   position: absolute;
   top: 50%;
@@ -74,7 +94,7 @@ body {
 
 .spinner {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
+  border-top: 4px solid #2c3e50;
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -103,7 +123,7 @@ body {
 }
 
 .popup-category {
-  background: #667eea;
+  background: #2c3e50;
   color: white;
   padding: 2px 8px;
   border-radius: 12px;
@@ -156,8 +176,19 @@ body {
   font-size: 16px;
   font-weight: 600;
   color: #333;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.chart-instructions {
+  font-size: 12px;
+  color: #666;
   margin-bottom: 10px;
   text-align: center;
+  padding: 5px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #2c3e50;
 }
 
 .chart {
@@ -188,7 +219,7 @@ body {
 }
 
 .filter-controls button {
-  background: #667eea;
+  background: #2c3e50;
   color: white;
   border: none;
   padding: 5px 10px;
@@ -201,7 +232,7 @@ body {
 }
 
 .filter-controls button:hover {
-  background: #5a67d8;
+  background: #34495e;
 }
 
 #reset-boundary-btn {
@@ -272,7 +303,7 @@ body {
 
 /* Legend header styling */
 .legend-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2c3e50;
   color: white;
   padding: 8px 10px;
   margin: -15px -15px 15px -15px;
@@ -297,7 +328,7 @@ body {
   }
 
   .map-container {
-    height: calc(100vh - 80px);
+    height: calc(100vh - 84px);
   }
 
   .charts-container {

@@ -189,19 +189,19 @@ function injectCustomClusterStyles() {
       width: 30px;
       height: 30px;
       font-size: 12px;
-      background: linear-gradient(135deg, #66bb6a, #43a047);
+      background: #27ae60;
     }
     .cluster-icon.medium {
       width: 40px;
       height: 40px;
       font-size: 14px;
-      background: linear-gradient(135deg, #ffa726, #fb8c00);
+      background: #f39c12;
     }
     .cluster-icon.large {
       width: 55px;
       height: 55px;
       font-size: 16px;
-      background: linear-gradient(135deg, #ef5350, #e53935);
+      background: #e74c3c;
     }
     .cluster-icon:hover {
       transform: scale(1.1);
@@ -422,7 +422,7 @@ function getMarkerColor(category) {
     health_and_medical: "#e67e22",
     college_university: "#34495e",
     airport: "#e91e63",
-    default: "#007bff", // Changed default color to blue
+    default: "#2c3e50", // Professional dark blue-gray
   };
   return colors[category] || colors.default;
 }
@@ -464,26 +464,26 @@ function getClusteringSettings(zoomLevel) {
 // Function to get chart colors for categories
 function getChartColors() {
   return [
-    "#e74c3c",
-    "#3498db",
-    "#2ecc71",
-    "#f39c12",
-    "#9b59b6",
-    "#1abc9c",
-    "#e67e22",
-    "#34495e",
-    "#e91e63",
-    "#95a5a6",
-    "#f1c40f",
-    "#16a085",
-    "#8e44ad",
-    "#2980b9",
-    "#27ae60",
-    "#d35400",
-    "#c0392b",
-    "#7f8c8d",
-    "#2c3e50",
-    "#e74c3c",
+    "#2c3e50", // Dark blue-gray
+    "#34495e", // Lighter blue-gray
+    "#95a5a6", // Light gray
+    "#7f8c8d", // Medium gray
+    "#3498db", // Blue
+    "#2980b9", // Dark blue
+    "#27ae60", // Green
+    "#2ecc71", // Light green
+    "#f39c12", // Orange
+    "#e67e22", // Dark orange
+    "#e74c3c", // Red
+    "#c0392b", // Dark red
+    "#9b59b6", // Purple
+    "#8e44ad", // Dark purple
+    "#1abc9c", // Teal
+    "#16a085", // Dark teal
+    "#f1c40f", // Yellow
+    "#f39c12", // Orange
+    "#e91e63", // Pink
+    "#34495e", // Blue-gray
   ];
 }
 
