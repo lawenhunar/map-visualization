@@ -109,7 +109,7 @@ function initializeMap() {
       spiderfyOnMaxZoom: false,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
-      disableClusteringAtZoom: 15,
+      disableClusteringAtZoom: 18,
       animate: true,
       animateAddingMarkers: false, // Disable for better performance
       iconCreateFunction: function (cluster) {
@@ -446,17 +446,17 @@ function getClusteringSettings(zoomLevel) {
   if (zoomLevel < 10) {
     return {
       maxClusterRadius: 120,
-      disableClusteringAtZoom: 12,
+      disableClusteringAtZoom: 18,
     };
   } else if (zoomLevel < 13) {
     return {
       maxClusterRadius: 80,
-      disableClusteringAtZoom: 14,
+      disableClusteringAtZoom: 19,
     };
   } else {
     return {
       maxClusterRadius: 60,
-      disableClusteringAtZoom: 16,
+      disableClusteringAtZoom: 20,
     };
   }
 }
