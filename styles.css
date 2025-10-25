@@ -161,7 +161,7 @@ body {
   padding: 15px;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 300px;
+  width: 350px;
   height: auto;
   max-height: calc(100vh - 120px);
   z-index: 1000;
@@ -363,7 +363,7 @@ body {
     top: auto;
     left: auto;
     width: calc(100% - 20px);
-    height: 300px;
+    height: 450px;
     margin: 10px auto;
     overflow-y: visible;
     background: white;

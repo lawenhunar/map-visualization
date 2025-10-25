@@ -1122,7 +1122,7 @@ function updateChart(features) {
   });
 
   // Prepare data for pie chart - use only categories that exist in current features
-  const pieData = Object.entries(categoryCounts)
+  const allCategories = Object.entries(categoryCounts)
     .map(([category, currentCount]) => {
       const isSelected = selectedCategories.includes(category);
 
@@ -1137,17 +1137,52 @@ function updateChart(features) {
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value);
 
+  // Use all categories for the pie chart
+  const pieData = allCategories;
+
+  // Calculate total count for center display
+  const totalCount = features.length;
+
   const pieOption = {
     tooltip: {
       trigger: "item",
       formatter: "{a} <br/>{b}: {c} ({d}%)",
+      position: function (point, params, dom, rect, size) {
+        // Position tooltip under the cursor
+        return [point[0], point[1] + 20];
+      },
+    },
+    legend: {
+      type: 'scroll',
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 5,
+      data: allCategories.map(item => item.name),
+      selectedMode: false, // Disable selection to show all items
+      formatter: function(name) {
+        const category = allCategories.find(item => item.name === name);
+        return `${name}: ${category ? category.value : 0}`;
+      },
+      textStyle: {
+        fontSize: 8
+      },
+      pageButtonItemGap: 3,
+      pageButtonGap: 8,
+      pageFormatter: '{current}/{total}',
+      pageIconColor: '#2c3e50',
+      pageIconInactiveColor: '#aaa',
+      pageIconSize: 10,
+      pageTextStyle: {
+        color: '#333',
+        fontSize: 8
+      }
     },
     series: [
       {
         name: "Categories",
         type: "pie",
-        radius: ["40%", "75%"],
-        center: ["50%", "50%"],
+        radius: ["30%", "60%"],
+        center: ["50%", "40%"],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 3,
@@ -1182,6 +1217,27 @@ function updateChart(features) {
             borderColor: item.isSelected ? "#333" : "#fff",
           },
         })),
+      },
+      // Add a second series for the center text
+      {
+        type: "pie",
+        radius: ["0%", "0%"],
+        center: ["50%", "40%"],
+        label: {
+          show: true,
+          position: "center",
+          formatter: function() {
+            return totalCount.toLocaleString();
+          },
+          fontSize: 16,
+          fontWeight: "bold",
+          color: "#2c3e50",
+        },
+        data: [{}],
+        silent: true,
+        itemStyle: {
+          opacity: 0,
+        },
       },
     ],
   };
