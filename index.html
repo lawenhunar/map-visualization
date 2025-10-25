@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Slemani Business Locations</title>
+    <title>Iraq Business Locations - Sulaymaniyah, Baghdad & Erbil</title>
 
     <!-- Leaflet CSS -->
     <link
@@ -32,7 +32,7 @@
   </head>
   <body>
     <div class="header">
-      <h1>Points of Interest in Slemani</h1>
+      <h1>Points of Interest in Iraq - Sulaymaniyah, Baghdad & Erbil</h1>
     </div>
 
     <div class="map-container">
@@ -74,32 +74,40 @@
         <div class="boundary-toggles">
           <label class="boundary-toggle">
             <input
-              type="checkbox"
+              type="radio"
+              name="boundary-level"
               id="boundary-adm0"
+              value="adm0"
               onchange="toggleBoundary('adm0')"
             />
             <span>Country</span>
           </label>
           <label class="boundary-toggle">
             <input
-              type="checkbox"
+              type="radio"
+              name="boundary-level"
               id="boundary-adm1"
+              value="adm1"
               onchange="toggleBoundary('adm1')"
             />
             <span>Governorates</span>
           </label>
           <label class="boundary-toggle">
             <input
-              type="checkbox"
+              type="radio"
+              name="boundary-level"
               id="boundary-adm2"
+              value="adm2"
               onchange="toggleBoundary('adm2')"
             />
             <span>Districts</span>
           </label>
           <label class="boundary-toggle">
             <input
-              type="checkbox"
+              type="radio"
+              name="boundary-level"
               id="boundary-adm3"
+              value="adm3"
               onchange="toggleBoundary('adm3')"
               checked
             />

@@ -89,12 +89,12 @@ class SpatialIndex {
   }
 }
 
-// Initialize the map centered on Sulaymaniyah
+// Initialize the map centered on Iraq to show all three cities
 function initializeMap() {
   injectCustomClusterStyles();
   map = L.map("map", {
     attributionControl: false,
-  }).setView([35.5553, 45.4321], 12);
+  }).setView([34.0, 44.0], 6); // Centered on Iraq to show all three cities
 
   // Add OpenStreetMap tiles
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -396,12 +396,14 @@ function createPopupContent(feature) {
     props.addresses?.[0]?.locality ||
     "No address";
   const confidence = (props.confidence * 100).toFixed(1);
+  const city = props.city || "Unknown City";
 
   return `
           <div class="custom-popup">
               <div class="popup-title">${name}</div>
               <div class="popup-category">${category.replace(/_/g, " ")}</div>
               <div class="popup-details">
+                  <p><strong>City:</strong> ${city}</p>
                   <p><strong>Phone:</strong> ${phone}</p>
                   <p><strong>Address:</strong> ${address}</p>
                   <p><strong>Confidence:</strong> ${confidence}%</p>
@@ -1040,19 +1042,26 @@ function createBoundaryLayer(boundaryData, level) {
   return layer;
 }
 
-// Function to toggle boundary layer
+// Function to toggle boundary layer (now handles radio button behavior)
 async function toggleBoundary(level) {
-  const checkbox = document.getElementById(`boundary-${level}`);
+  const radioButton = document.getElementById(`boundary-${level}`);
 
-  if (checkbox.checked) {
-    // Show boundary layer
+  if (radioButton.checked) {
+    // Hide all other boundary layers first
+    Object.keys(boundaryLayers).forEach(async (otherLevel) => {
+      if (otherLevel !== level && boundaryLayers[otherLevel] && map.hasLayer(boundaryLayers[otherLevel])) {
+        map.removeLayer(boundaryLayers[otherLevel]);
+      }
+    });
+
+    // Show selected boundary layer
     if (!boundaryLayers[level]) {
       // Load and create layer if not exists
       const boundaryData = await loadBoundaryData(level);
       if (boundaryData) {
         boundaryLayers[level] = createBoundaryLayer(boundaryData, level);
       } else {
-        checkbox.checked = false;
+        radioButton.checked = false;
         alert(`Failed to load ${level} boundary data`);
         return;
       }
@@ -1072,11 +1081,6 @@ async function toggleBoundary(level) {
       if (markerClusterGroup) {
         markerClusterGroup.bringToFront();
       }
-    }
-  } else {
-    // Hide boundary layer
-    if (boundaryLayers[level] && map.hasLayer(boundaryLayers[level])) {
-      map.removeLayer(boundaryLayers[level]);
     }
   }
 }
@@ -1191,25 +1195,49 @@ async function loadGeoJSONData() {
   try {
     loadingInProgress = true;
 
-    // Load the main places data
-    console.log("Loading places data...");
-    const response = await fetch('./geo locations/slemani_places.geojson');
+    // Load all three datasets
+    console.log("Loading places data from all three cities...");
+    const datasets = [
+      { name: 'Sulaymaniyah', file: './geo locations/slemani_places.geojson' },
+      { name: 'Baghdad', file: './geo locations/baghdad_places.geojson' },
+      { name: 'Erbil', file: './geo locations/erbil_places.geojson' }
+    ];
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    const allData = [];
+    let totalFeatures = 0;
+
+    for (const dataset of datasets) {
+      console.log(`Loading ${dataset.name} data...`);
+      const response = await fetch(dataset.file);
+
+      if (!response.ok) {
+        console.warn(`Failed to load ${dataset.name}: HTTP error! status: ${response.status}`);
+        continue;
+      }
+
+      const geojsonData = await response.json();
+      console.log(`Loaded ${geojsonData.features.length} features from ${dataset.name}`);
+      
+      if (geojsonData.features && geojsonData.features.length > 0) {
+        // Add city information to each feature
+        geojsonData.features.forEach(feature => {
+          feature.properties.city = dataset.name;
+        });
+        allData.push(...geojsonData.features);
+        totalFeatures += geojsonData.features.length;
+      }
     }
 
-    const geojsonData = await response.json();
-    console.log(`Loaded ${geojsonData.features.length} features from local file`);
+    console.log(`Total features loaded: ${totalFeatures} from all cities`);
 
     // Validate that we got data
-    if (!geojsonData.features || geojsonData.features.length === 0) {
-      throw new Error("No features found in the local file");
+    if (allData.length === 0) {
+      throw new Error("No features found in any of the local files");
     }
 
     // Set all features
-    allFeatures = geojsonData.features;
-    originalFeatures = [...geojsonData.features];
+    allFeatures = allData;
+    originalFeatures = [...allData];
 
     // Build spatial index for efficient boundary filtering
     spatialIndex = new SpatialIndex(0.005); // ~500m cells
@@ -1239,7 +1267,7 @@ async function loadGeoJSONData() {
     document.getElementById("loading").style.display = "none";
 
     console.log(
-      `✅ Completed loading ${allFeatures.length} locations with ${categories.size} different categories`
+      `✅ Completed loading ${allFeatures.length} locations with ${categories.size} different categories from all three cities`
     );
 
     // Fit map to show all loaded markers
