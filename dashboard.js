@@ -6,8 +6,6 @@ let allCategoryCounts = {};
 let categoryLayers = {}; // Store individual markers by category
 let boundaryLayers = {}; // Store boundary layers by administrative level
 let loadedBoundaries = {}; // Cache loaded boundary data
-let selectedBoundary = null; // Currently selected boundary for filtering
-let filteredFeatures = []; // Features within selected boundary
 let originalFeatures = []; // Store original features for reset
 let viewportMarkers = new Set(); // Track markers currently in viewport
 let currentViewportBounds = null; // Current map viewport bounds
@@ -15,6 +13,8 @@ let spatialIndex = null; // Spatial index for efficient boundary filtering
 let isLoadingComplete = false; // Track if all data has been loaded
 let loadingInProgress = false; // Prevent concurrent loading requests
 let currentZoomLevel = 12; // Track current zoom level for LOD
+let selectedBoundary = null; // Store currently selected boundary feature for filtering
+let selectedBoundaryLayer = null; // Store the Leaflet layer of selected boundary
 
 // Simple spatial index using a grid-based approach
 class SpatialIndex {
@@ -271,45 +271,6 @@ function isPointInGeometry(point, geometry) {
   return false;
 }
 
-// Filter features within a boundary using spatial indexing for optimization
-function filterFeaturesInBoundary(features, boundaryGeometry) {
-  if (!spatialIndex) {
-    // Fallback to original method if spatial index not available
-    return features.filter((feature) => {
-      const coords = feature.geometry.coordinates;
-      return isPointInGeometry(coords, boundaryGeometry);
-    });
-  }
-
-  // Get boundary bounds for spatial filtering
-  const bounds = getGeometryBounds(boundaryGeometry);
-  if (!bounds) {
-    return [];
-  }
-
-  // Use spatial index to get candidate features within bounds
-  const candidateFeatures = spatialIndex.queryBounds(
-    bounds.minLng,
-    bounds.maxLng,
-    bounds.minLat,
-    bounds.maxLat
-  );
-
-  console.log(
-    `Spatial index filtered ${candidateFeatures.length} candidates from ${features.length} total features`
-  );
-
-  // Apply precise point-in-polygon test only to candidates
-  const filteredFeatures = candidateFeatures.filter((feature) => {
-    const coords = feature.geometry.coordinates;
-    return isPointInGeometry(coords, boundaryGeometry);
-  });
-
-  console.log(
-    `Final filtered result: ${filteredFeatures.length} features within boundary`
-  );
-  return filteredFeatures;
-}
 
 // Get bounds of a GeoJSON geometry
 function getGeometryBounds(geometry) {
@@ -349,55 +310,6 @@ function getGeometryBounds(geometry) {
   return null;
 }
 
-// Reset boundary filter
-function resetBoundaryFilter() {
-  selectedBoundary = null;
-  filteredFeatures = [];
-
-  // Reset boundary styles
-  Object.values(boundaryLayers).forEach((layer) => {
-    if (layer && map.hasLayer(layer)) {
-      layer.eachLayer((sublayer) => {
-        const level = sublayer.boundaryLevel;
-        sublayer.setStyle(getBoundaryStyle(level));
-      });
-    }
-  });
-
-  // First, fit map to show all original features to ensure viewport includes everything
-  if (originalFeatures.length > 0) {
-    // Calculate bounds from all original features
-    const bounds = L.latLngBounds([]);
-    originalFeatures.forEach((feature) => {
-      const coords = feature.geometry.coordinates;
-      bounds.extend([coords[1], coords[0]]);
-    });
-    
-    if (bounds.isValid()) {
-      map.fitBounds(bounds.pad(0.1));
-      
-      // Wait for map to finish fitting bounds before updating markers
-      // This ensures viewport filtering in updateMapAndChart includes all features
-      map.once('moveend', function() {
-        // Use updateMapAndChart to properly restore all features and update charts
-        // This ensures the data source is correctly set to originalFeatures
-        // Since selectedBoundary is now null, it will use originalFeatures
-        updateMapAndChart();
-      });
-      
-      return; // Exit early, updateMapAndChart will be called in moveend handler
-    }
-  }
-
-  // If bounds calculation failed or no features, update immediately
-  // Use updateMapAndChart to properly restore all features and update charts
-  // This ensures the data source is correctly set to originalFeatures
-  // Since selectedBoundary is now null, it will use originalFeatures
-  updateMapAndChart();
-
-  // Hide reset boundary button
-  document.getElementById("reset-boundary-btn").style.display = "none";
-}
 
 // Function to create custom popup content
 function createPopupContent(feature) {
@@ -573,40 +485,6 @@ function getBoundaryHoverStyle(level) {
   return hoverStyles[level] || hoverStyles.adm1;
 }
 
-// Function to get selected boundary styling
-function getSelectedBoundaryStyle(level) {
-  const selectedStyles = {
-    adm0: {
-      color: "#1a252f",
-      weight: 5,
-      opacity: 1,
-      fillColor: "#3498db",
-      fillOpacity: 0.4,
-    },
-    adm1: {
-      color: "#c0392b",
-      weight: 4,
-      opacity: 1,
-      fillColor: "#e74c3c",
-      fillOpacity: 0.4,
-    },
-    adm2: {
-      color: "#d68910",
-      weight: 3,
-      opacity: 1,
-      fillColor: "#f39c12",
-      fillOpacity: 0.35,
-    },
-    adm3: {
-      color: "#7d3c98",
-      weight: 2.5,
-      opacity: 1,
-      fillColor: "#9b59b6",
-      fillOpacity: 0.3,
-    },
-  };
-  return selectedStyles[level] || selectedStyles.adm1;
-}
 
 // Function to create boundary popup content
 function createBoundaryPopupContent(feature, level) {
@@ -767,16 +645,41 @@ function toggleCategoryFilter(category) {
   updateMapAndChart();
 }
 
+// Function to filter features by boundary geometry
+function filterFeaturesByBoundary(features, boundaryFeature) {
+  if (!boundaryFeature || !boundaryFeature.geometry) {
+    return features;
+  }
+
+  const geometry = boundaryFeature.geometry;
+  const filtered = features.filter((feature) => {
+    // Check if feature is a point
+    if (feature.geometry.type === "Point") {
+      const point = feature.geometry.coordinates;
+      return isPointInGeometry(point, geometry);
+    }
+    return false;
+  });
+
+  console.log(`Boundary filter: ${filtered.length} of ${features.length} features within boundary`);
+  return filtered;
+}
+
 // Function to update map markers and chart based on selected categories
 function updateMapAndChart() {
   let filteredCount = 0;
   let currentFeatures = [];
 
-  // Use current data source (boundary filtered or original)
-  const dataSource = selectedBoundary ? filteredFeatures : originalFeatures;
+  // Start with original features
+  let filteredFeatures = [...originalFeatures];
 
-  // Apply category filtering to the current data source
-  const categoryFilteredFeatures = dataSource.filter((feature) => {
+  // Apply boundary filtering if a boundary is selected
+  if (selectedBoundary) {
+    filteredFeatures = filterFeaturesByBoundary(filteredFeatures, selectedBoundary);
+  }
+
+  // Apply category filtering to the filtered features
+  const categoryFilteredFeatures = filteredFeatures.filter((feature) => {
     const category = feature.properties.categories?.primary || "unknown";
     return (
       selectedCategories.length === 0 || selectedCategories.includes(category)
@@ -892,28 +795,6 @@ function updateMapAndChart() {
           .map((cat) => cat.replace(/_/g, " ").toUpperCase())
           .join(", ");
 
-  // Add boundary filter info if applicable
-  if (selectedBoundary && selectedBoundary.boundaryFeature) {
-    const props = selectedBoundary.boundaryFeature.properties;
-    const level = selectedBoundary.boundaryLevel;
-    let boundaryName = "";
-    switch (level) {
-      case "adm0":
-        boundaryName = props.ADM0_EN || "Country";
-        break;
-      case "adm1":
-        boundaryName = props.ADM1_EN || "Governorate";
-        break;
-      case "adm2":
-        boundaryName = props.ADM2_EN || "District";
-        break;
-      case "adm3":
-        boundaryName = props.ADM3_EN || "Sub-district";
-        break;
-    }
-    filterDisplay += ` in ${boundaryName}`;
-  }
-
   document.getElementById("active-filter").textContent = filterDisplay;
 
   // Update chart with category-filtered features from current data source
@@ -932,7 +813,7 @@ function updateMapAndChart() {
 // Function to clear all filters
 function clearFilter() {
   selectedCategories = [];
-  resetBoundaryFilter();
+  clearBoundaryFilter();
   updateMapAndChart();
 }
 
@@ -973,6 +854,41 @@ async function loadBoundaryData(level) {
   }
 }
 
+// Function to get selected boundary style (highlighted)
+function getSelectedBoundaryStyle(level) {
+  const selectedStyles = {
+    adm0: {
+      color: "#2c3e50",
+      weight: 5,
+      opacity: 1,
+      fillColor: "#3498db",
+      fillOpacity: 0.4,
+    },
+    adm1: {
+      color: "#e74c3c",
+      weight: 4,
+      opacity: 1,
+      fillColor: "#e74c3c",
+      fillOpacity: 0.4,
+    },
+    adm2: {
+      color: "#f39c12",
+      weight: 3.5,
+      opacity: 1,
+      fillColor: "#f39c12",
+      fillOpacity: 0.35,
+    },
+    adm3: {
+      color: "#9b59b6",
+      weight: 3,
+      opacity: 1,
+      fillColor: "#9b59b6",
+      fillOpacity: 0.3,
+    },
+  };
+  return selectedStyles[level] || selectedStyles.adm1;
+}
+
 // Function to create boundary layer
 function createBoundaryLayer(boundaryData, level) {
   const layer = L.geoJSON(boundaryData, {
@@ -985,57 +901,62 @@ function createBoundaryLayer(boundaryData, level) {
 
       // Mouse events for hover effect
       layer.on("mouseover", function (e) {
-        if (selectedBoundary !== layer) {
+        // Only show hover if this boundary is not selected
+        if (selectedBoundaryLayer !== layer) {
           layer.setStyle(hoverStyle);
         }
-        // Don't bring boundaries to front to avoid covering markers
+        // Change cursor to pointer to indicate clickability
+        layer._container && (layer._container.style.cursor = "pointer");
       });
 
       layer.on("mouseout", function (e) {
-        if (selectedBoundary !== layer) {
+        // Restore to original or selected style
+        if (selectedBoundaryLayer === layer) {
+          layer.setStyle(selectedStyle);
+        } else {
           layer.setStyle(originalStyle);
         }
+        layer._container && (layer._container.style.cursor = "");
       });
 
-      // Click event for filtering
+      // Click event to filter markers by boundary
       layer.on("click", function (e) {
-        // Prevent event propagation
-        L.DomEvent.stopPropagation(e);
-
-        // Check if this boundary is already selected (toggle functionality)
-        if (selectedBoundary === layer) {
-          // Deselect current boundary
-          resetBoundaryFilter();
+        e.originalEvent.stopPropagation(); // Prevent map click events
+        
+        // If clicking the same boundary, deselect it
+        if (selectedBoundaryLayer === layer) {
+          clearBoundaryFilter();
           return;
         }
 
-        // Reset previous selection
-        if (selectedBoundary) {
-          const prevLevel = selectedBoundary.boundaryLevel;
-          selectedBoundary.setStyle(getBoundaryStyle(prevLevel));
+        // Clear previous selection
+        if (selectedBoundaryLayer) {
+          const prevLevel = selectedBoundaryLayer.boundaryLevel;
+          selectedBoundaryLayer.setStyle(getBoundaryStyle(prevLevel));
         }
 
         // Set new selection
-        selectedBoundary = layer;
+        selectedBoundary = feature;
+        selectedBoundaryLayer = layer;
         layer.setStyle(selectedStyle);
+        layer.bringToFront();
 
-        // Filter features within this boundary
-        filteredFeatures = filterFeaturesInBoundary(
-          originalFeatures,
-          feature.geometry
-        );
+        // Zoom to boundary bounds
+        try {
+          const bounds = layer.getBounds();
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
+        } catch (error) {
+          console.warn("Could not zoom to boundary bounds:", error);
+        }
 
-        console.log(
-          `Filtered ${filteredFeatures.length} features within boundary`
-        );
+        // Update UI
+        updateBoundaryFilterDisplay(feature, level);
 
-        // Update markers and charts with filtered data using clustering
-        createMarkers(filteredFeatures);
+        // Filter and update map
+        console.log(`Filtering by boundary: ${getBoundaryName(feature, level)}`);
         updateMapAndChart();
-
-        // Show reset boundary button
-        document.getElementById("reset-boundary-btn").style.display =
-          "inline-block";
       });
 
       // Store level reference and feature
@@ -1056,11 +977,73 @@ function createBoundaryLayer(boundaryData, level) {
   return layer;
 }
 
+// Function to get boundary name for display
+function getBoundaryName(feature, level) {
+  const props = feature.properties;
+  switch (level) {
+    case "adm0":
+      return props.ADM0_EN || "Unknown Country";
+    case "adm1":
+      return props.ADM1_EN || "Unknown Governorate";
+    case "adm2":
+      return props.ADM2_EN || "Unknown District";
+    case "adm3":
+      return props.ADM3_EN || "Unknown Sub-district";
+    default:
+      return "Unknown";
+  }
+}
+
+// Function to update boundary filter display in UI
+function updateBoundaryFilterDisplay(feature, level) {
+  const boundaryName = getBoundaryName(feature, level);
+  const levelNames = {
+    adm0: "Country",
+    adm1: "Governorate",
+    adm2: "District",
+    adm3: "Sub-district"
+  };
+  
+  const filterInfo = document.getElementById("boundary-filter-info");
+  if (filterInfo) {
+    filterInfo.innerHTML = `
+      <div style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+        <strong>Boundary Filter:</strong> ${levelNames[level]} - ${boundaryName}
+        <button onclick="clearBoundaryFilter()" style="margin-left: 10px; padding: 2px 8px; cursor: pointer;">Clear</button>
+      </div>
+    `;
+  }
+}
+
+// Function to clear boundary filter
+function clearBoundaryFilter() {
+  if (selectedBoundaryLayer) {
+    const level = selectedBoundaryLayer.boundaryLevel;
+    selectedBoundaryLayer.setStyle(getBoundaryStyle(level));
+    selectedBoundaryLayer = null;
+  }
+  selectedBoundary = null;
+  
+  // Clear UI
+  const filterInfo = document.getElementById("boundary-filter-info");
+  if (filterInfo) {
+    filterInfo.innerHTML = "";
+  }
+  
+  // Update map
+  updateMapAndChart();
+}
+
 // Function to toggle boundary layer (now handles radio button behavior)
 async function toggleBoundary(level) {
   const radioButton = document.getElementById(`boundary-${level}`);
 
   if (radioButton.checked) {
+    // Clear boundary filter if switching to a different level
+    if (selectedBoundaryLayer && selectedBoundaryLayer.boundaryLevel !== level) {
+      clearBoundaryFilter();
+    }
+
     // Hide all other boundary layers first
     Object.keys(boundaryLayers).forEach(async (otherLevel) => {
       if (otherLevel !== level && boundaryLayers[otherLevel] && map.hasLayer(boundaryLayers[otherLevel])) {
@@ -1095,6 +1078,11 @@ async function toggleBoundary(level) {
       if (markerClusterGroup) {
         markerClusterGroup.bringToFront();
       }
+    }
+  } else {
+    // If unchecking, clear boundary filter if it was from this level
+    if (selectedBoundaryLayer && selectedBoundaryLayer.boundaryLevel === level) {
+      clearBoundaryFilter();
     }
   }
 }
@@ -1258,103 +1246,57 @@ function updateChart(features) {
   categoryChart.setOption(pieOption, true);
 }
 
-// Load GeoJSON data from local files
-async function loadGeoJSONData() {
-  console.log("🔄 Loading GeoJSON data from local files");
 
+// Function to load combined places GeoJSON data
+async function loadCombinedPlacesData() {
   try {
-    loadingInProgress = true;
-
-    // Load combined dataset
-    console.log("Loading combined places data...");
-    const response = await fetch('./geo locations/combined_places.geojson');
+    console.log("📂 Loading combined places data...");
+    const response = await fetch("./geo locations/combined_places.geojson");
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const geojsonData = await response.json();
-    console.log(`Loaded ${geojsonData.features.length} features from combined file`);
-    
-    const allData = geojsonData.features || [];
-    const totalFeatures = allData.length;
+    const data = await response.json();
+    console.log(`✅ Successfully loaded ${data.features?.length || 0} features from combined_places.geojson`);
 
-    console.log(`Total features loaded: ${totalFeatures}`);
+    // Store the data
+    allFeatures = data.features || [];
+    originalFeatures = [...allFeatures]; // Store original for filtering
 
-    // Validate that we got data
-    if (allData.length === 0) {
-      throw new Error("No features found in the combined file");
+    // Build spatial index for efficient queries
+    if (allFeatures.length > 0) {
+      spatialIndex = new SpatialIndex();
+      spatialIndex.build(allFeatures);
     }
 
-    // Set all features
-    allFeatures = allData;
-    originalFeatures = [...allData];
-
-    // Build spatial index for efficient boundary filtering
-    spatialIndex = new SpatialIndex(0.005); // ~500m cells
-    spatialIndex.build(allFeatures);
-
-    const categories = new Set();
-
-    // Count categories from all loaded features
-    allFeatures.forEach((feature) => {
-      const category = feature.properties.categories?.primary || "unknown";
-      categories.add(category);
-    });
-
-    console.log(`Found ${categories.size} different categories`);
-
-    // Update markers with loaded data
-    createMarkers(allFeatures);
-
-    // Update charts
-    initializeCharts(allFeatures);
-
-    // Update info panel
-    document.getElementById("location-count").textContent = allFeatures.length;
-    document.getElementById("category-count").textContent = categories.size;
+    // Create markers and initialize charts
+    if (allFeatures.length > 0) {
+      createMarkers(allFeatures);
+      initializeCharts(allFeatures);
+      
+      // Update info panel
+      document.getElementById("location-count").textContent = allFeatures.length;
+      document.getElementById("category-count").textContent = Object.keys(allCategoryCounts).length;
+    }
 
     // Hide loading indicator
-    document.getElementById("loading").style.display = "none";
-
-    console.log(
-      `✅ Completed loading ${allFeatures.length} locations with ${categories.size} different categories from combined file`
-    );
-
-    // Fit map to show all loaded markers
-    if (allFeatures.length > 0) {
-      if (markerClusterGroup) {
-        const clusterBounds = markerClusterGroup.getBounds();
-        if (clusterBounds.isValid()) {
-          map.fitBounds(clusterBounds.pad(0.1));
-          markerClusterGroup.bringToFront();
-        }
-      } else {
-        // If no clustering, fit to all individual markers
-        const allVisibleMarkers = [];
-        Object.values(categoryLayers).forEach((markers) => {
-          markers.forEach((marker) => {
-            if (map.hasLayer(marker)) {
-              allVisibleMarkers.push(marker);
-            }
-          });
-        });
-        if (allVisibleMarkers.length > 0) {
-          const group = new L.featureGroup(allVisibleMarkers);
-          map.fitBounds(group.getBounds().pad(0.1));
-        }
-      }
+    const loadingElement = document.getElementById("loading");
+    if (loadingElement) {
+      loadingElement.style.display = "none";
     }
 
-    // Mark as complete and load boundary data
-    isLoadingComplete = true;
-    loadingInProgress = false;
-
+    return data;
   } catch (error) {
-    console.error("❌ Error loading GeoJSON data:", error);
-    document.getElementById("loading").innerHTML =
-      '<p style="color: red;">Error: Failed to load data from local files. Please check that the files exist and are accessible.</p>';
-    loadingInProgress = false;
+    console.error("❌ Error loading combined places data:", error);
+    
+    // Show error message
+    const loadingElement = document.getElementById("loading");
+    if (loadingElement) {
+      loadingElement.innerHTML = `<p style="color: red;">Error loading data: ${error.message}</p>`;
+    }
+    
+    return null;
   }
 }
 
@@ -1362,8 +1304,10 @@ async function loadGeoJSONData() {
 document.addEventListener("DOMContentLoaded", function () {
   console.log("🚀 DOMContentLoaded - initializing map application");
   initializeMap();
-  console.log("🗺️ Map initialized, starting data load");
-  loadGeoJSONData();
+  console.log("🗺️ Map initialized");
+
+  // Load combined places data
+  loadCombinedPlacesData();
 
   // Load default boundary layer (ADM3 - Sub-districts) after a short delay
   setTimeout(() => {

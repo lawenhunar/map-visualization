@@ -51,22 +51,16 @@
         <div class="info-instructions">
           <strong>Instructions:</strong><br />
           • Click on markers to view business details<br />
-          • Click on boundaries to filter data by area<br />
-          • Use chart segments to filter by category
+          • Use chart segments to filter by category<br />
+          • Click on boundary shapes to filter by area
         </div>
       </div>
 
       <div class="filter-controls">
         <div><strong>Active Filter:</strong></div>
         <div id="active-filter">All Categories</div>
+        <div id="boundary-filter-info"></div>
         <button onclick="clearFilter()">Clear All Filters</button>
-        <button
-          onclick="resetBoundaryFilter()"
-          id="reset-boundary-btn"
-          style="display: none"
-        >
-          Reset Boundary Filter
-        </button>
       </div>
 
       <div class="boundary-controls">
