@@ -364,22 +364,36 @@ function resetBoundaryFilter() {
     }
   });
 
-  // Show all features using clustered markers
-  createMarkers(originalFeatures);
-  updateChart(originalFeatures);
+  // First, fit map to show all original features to ensure viewport includes everything
+  if (originalFeatures.length > 0) {
+    // Calculate bounds from all original features
+    const bounds = L.latLngBounds([]);
+    originalFeatures.forEach((feature) => {
+      const coords = feature.geometry.coordinates;
+      bounds.extend([coords[1], coords[0]]);
+    });
+    
+    if (bounds.isValid()) {
+      map.fitBounds(bounds.pad(0.1));
+      
+      // Wait for map to finish fitting bounds before updating markers
+      // This ensures viewport filtering in updateMapAndChart includes all features
+      map.once('moveend', function() {
+        // Use updateMapAndChart to properly restore all features and update charts
+        // This ensures the data source is correctly set to originalFeatures
+        // Since selectedBoundary is now null, it will use originalFeatures
+        updateMapAndChart();
+      });
+      
+      return; // Exit early, updateMapAndChart will be called in moveend handler
+    }
+  }
 
-  // Update info panel
-  document.getElementById("location-count").textContent =
-    originalFeatures.length;
-
-  // Update active filter display
-  const filterDisplay =
-    selectedCategories.length === 0
-      ? "All Categories"
-      : selectedCategories
-          .map((cat) => cat.replace(/_/g, " ").toUpperCase())
-          .join(", ");
-  document.getElementById("active-filter").textContent = filterDisplay;
+  // If bounds calculation failed or no features, update immediately
+  // Use updateMapAndChart to properly restore all features and update charts
+  // This ensures the data source is correctly set to originalFeatures
+  // Since selectedBoundary is now null, it will use originalFeatures
+  updateMapAndChart();
 
   // Hide reset boundary button
   document.getElementById("reset-boundary-btn").style.display = "none";
@@ -1251,44 +1265,25 @@ async function loadGeoJSONData() {
   try {
     loadingInProgress = true;
 
-    // Load all three datasets
-    console.log("Loading places data from all three cities...");
-    const datasets = [
-      { name: 'Sulaymaniyah', file: './geo locations/slemani_places.geojson' },
-      { name: 'Baghdad', file: './geo locations/baghdad_places.geojson' },
-      { name: 'Erbil', file: './geo locations/erbil_places.geojson' }
-    ];
+    // Load combined dataset
+    console.log("Loading combined places data...");
+    const response = await fetch('./geo locations/combined_places.geojson');
 
-    const allData = [];
-    let totalFeatures = 0;
-
-    for (const dataset of datasets) {
-      console.log(`Loading ${dataset.name} data...`);
-      const response = await fetch(dataset.file);
-
-      if (!response.ok) {
-        console.warn(`Failed to load ${dataset.name}: HTTP error! status: ${response.status}`);
-        continue;
-      }
-
-      const geojsonData = await response.json();
-      console.log(`Loaded ${geojsonData.features.length} features from ${dataset.name}`);
-      
-      if (geojsonData.features && geojsonData.features.length > 0) {
-        // Add city information to each feature
-        geojsonData.features.forEach(feature => {
-          feature.properties.city = dataset.name;
-        });
-        allData.push(...geojsonData.features);
-        totalFeatures += geojsonData.features.length;
-      }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    console.log(`Total features loaded: ${totalFeatures} from all cities`);
+    const geojsonData = await response.json();
+    console.log(`Loaded ${geojsonData.features.length} features from combined file`);
+    
+    const allData = geojsonData.features || [];
+    const totalFeatures = allData.length;
+
+    console.log(`Total features loaded: ${totalFeatures}`);
 
     // Validate that we got data
     if (allData.length === 0) {
-      throw new Error("No features found in any of the local files");
+      throw new Error("No features found in the combined file");
     }
 
     // Set all features
@@ -1323,7 +1318,7 @@ async function loadGeoJSONData() {
     document.getElementById("loading").style.display = "none";
 
     console.log(
-      `✅ Completed loading ${allFeatures.length} locations with ${categories.size} different categories from all three cities`
+      `✅ Completed loading ${allFeatures.length} locations with ${categories.size} different categories from combined file`
     );
 
     // Fit map to show all loaded markers
