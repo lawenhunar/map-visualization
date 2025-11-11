@@ -1,5 +1,5 @@
 // Global variables
-let map, allFeatures, categoryChart, markerClusterGroup;
+let map, allFeatures, markerClusterGroup;
 let selectedCategories = [];
 let allMarkers = [];
 let allCategoryCounts = {};
@@ -15,6 +15,23 @@ let loadingInProgress = false; // Prevent concurrent loading requests
 let currentZoomLevel = 12; // Track current zoom level for LOD
 let selectedBoundary = null; // Store currently selected boundary feature for filtering
 let selectedBoundaryLayer = null; // Store the Leaflet layer of selected boundary
+let radiusCircle = null; // Circle overlay for radius analysis
+let radiusCenterMarker = null; // Draggable marker for radius center
+const radiusAnalysisConfig = {
+  center: {
+    lat: 35.5613,
+    lng: 45.4373,
+  },
+  radiusMeters: 1500,
+  minRadiusMeters: 500,
+  maxRadiusMeters: 5000,
+  stepMeters: 100,
+  label: "Slemani Bazar (35.5613, 45.4373)",
+};
+let radiusAnalysisResults = {
+  total: 0,
+  categories: [],
+};
 
 // Simple spatial index using a grid-based approach
 class SpatialIndex {
@@ -389,31 +406,368 @@ function getClusteringSettings(zoomLevel) {
   }
 }
 
-// Function to get chart colors for categories
-function getChartColors() {
-  return [
-    "#2c3e50", // Dark blue-gray
-    "#34495e", // Lighter blue-gray
-    "#95a5a6", // Light gray
-    "#7f8c8d", // Medium gray
-    "#3498db", // Blue
-    "#2980b9", // Dark blue
-    "#27ae60", // Green
-    "#2ecc71", // Light green
-    "#f39c12", // Orange
-    "#e67e22", // Dark orange
-    "#e74c3c", // Red
-    "#c0392b", // Dark red
-    "#9b59b6", // Purple
-    "#8e44ad", // Dark purple
-    "#1abc9c", // Teal
-    "#16a085", // Dark teal
-    "#f1c40f", // Yellow
-    "#f39c12", // Orange
-    "#e91e63", // Pink
-    "#34495e", // Blue-gray
-  ];
+
+// Helper to convert category keys to a readable label
+function formatCategoryLabel(categoryKey) {
+  if (!categoryKey || categoryKey === "unknown") {
+    return "Unknown";
+  }
+
+  return categoryKey
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
+
+function formatDistanceLabel(meters) {
+  if (!Number.isFinite(meters)) {
+    return "0 m";
+  }
+
+  if (meters >= 1000) {
+    const kilometers = meters / 1000;
+    const decimals = kilometers >= 10 ? 0 : 1;
+    return `${kilometers.toFixed(decimals)} km`;
+  }
+
+  return `${Math.round(meters)} m`;
+}
+
+function formatLatLng(latLng) {
+  if (!latLng) {
+    return "";
+  }
+  const lat = Number(latLng.lat || latLng[0] || 0).toFixed(4);
+  const lng = Number(latLng.lng || latLng[1] || 0).toFixed(4);
+  return `Lat ${lat}, Lng ${lng}`;
+}
+
+function updateRadiusPanelDetails() {
+  const radiusLabel = document.getElementById("radius-distance-label");
+  if (radiusLabel) {
+    radiusLabel.textContent = formatDistanceLabel(
+      radiusAnalysisConfig.radiusMeters
+    );
+  }
+
+  const centerLabel = document.getElementById("radius-panel-center");
+  if (centerLabel) {
+    centerLabel.textContent =
+      radiusAnalysisConfig.label ||
+      formatLatLng(radiusAnalysisConfig.center);
+  }
+
+  const slider = document.getElementById("radius-range");
+  if (slider) {
+    const value = Number(slider.value);
+    if (value !== radiusAnalysisConfig.radiusMeters) {
+      slider.value = radiusAnalysisConfig.radiusMeters;
+    }
+  }
+}
+
+function setRadiusMeters(newRadius, { runAnalysis = true } = {}) {
+  let radiusValue = Number(newRadius);
+  if (!Number.isFinite(radiusValue)) {
+    radiusValue = radiusAnalysisConfig.radiusMeters;
+  }
+
+  radiusValue = Math.max(
+    radiusAnalysisConfig.minRadiusMeters,
+    Math.min(radiusValue, radiusAnalysisConfig.maxRadiusMeters)
+  );
+
+  radiusAnalysisConfig.radiusMeters = radiusValue;
+
+  if (radiusCircle) {
+    radiusCircle.setRadius(radiusValue);
+  }
+
+  updateRadiusPanelDetails();
+
+  if (runAnalysis) {
+    updateRadiusAnalysis();
+  }
+}
+
+function updateRadiusCenter(latLng, { updateLabel = true, runAnalysis = true } = {}) {
+  if (!latLng) {
+    return;
+  }
+
+  radiusAnalysisConfig.center = {
+    lat: latLng.lat,
+    lng: latLng.lng,
+  };
+
+  if (updateLabel) {
+    radiusAnalysisConfig.label = formatLatLng(latLng);
+  }
+
+  if (radiusCircle) {
+    radiusCircle.setLatLng(latLng);
+  }
+
+  if (radiusCenterMarker) {
+    radiusCenterMarker.setLatLng(latLng);
+  }
+
+  updateRadiusPanelDetails();
+
+  if (runAnalysis) {
+    updateRadiusAnalysis();
+  }
+}
+
+function focusRadiusArea(paddingFactor = 0.35) {
+  if (!map || !radiusCircle) {
+    return;
+  }
+
+  try {
+    const bounds = radiusCircle.getBounds();
+    if (bounds && bounds.isValid()) {
+      map.fitBounds(bounds.pad(paddingFactor));
+    } else {
+      const center = radiusCircle.getLatLng();
+      if (center) {
+        map.setView(center, Math.max(map.getZoom(), 14));
+      }
+    }
+  } catch (error) {
+    console.warn("Could not focus radius area:", error);
+  }
+}
+
+function setupRadiusSlider() {
+  const slider = document.getElementById("radius-range");
+  if (!slider) {
+    return;
+  }
+
+  slider.min = radiusAnalysisConfig.minRadiusMeters;
+  slider.max = radiusAnalysisConfig.maxRadiusMeters;
+  slider.step = radiusAnalysisConfig.stepMeters || 100;
+  slider.value = radiusAnalysisConfig.radiusMeters;
+
+  slider.addEventListener("input", (event) => {
+    setRadiusMeters(Number(event.target.value));
+  });
+}
+
+// Get all features that fall within a specific radius of a center point
+function getFeaturesWithinRadius(features, centerLatLng, radiusMeters) {
+  if (!Array.isArray(features) || !centerLatLng) {
+    return [];
+  }
+
+  return features.filter((feature) => {
+    if (!feature?.geometry || feature.geometry.type !== "Point") {
+      return false;
+    }
+
+    const [lng, lat] = feature.geometry.coordinates;
+    const pointLatLng = L.latLng(lat, lng);
+
+    return centerLatLng.distanceTo(pointLatLng) <= radiusMeters;
+  });
+}
+
+// Calculate top categories for a set of features
+function calculateRadiusTopCategories(features, limit = 5) {
+  const categoryCounts = {};
+
+  features.forEach((feature) => {
+    const categoryKey = feature.properties?.categories?.primary || "unknown";
+    categoryCounts[categoryKey] = (categoryCounts[categoryKey] || 0) + 1;
+  });
+
+  return Object.entries(categoryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([categoryKey, count]) => ({
+      key: categoryKey,
+      label: formatCategoryLabel(categoryKey),
+      count,
+    }));
+}
+
+// Update the panel UI with the latest radius analysis data
+function renderRadiusPanelContent(results) {
+  const countElement = document.getElementById("radius-location-count");
+  const listElement = document.getElementById("radius-top-categories");
+
+  if (!countElement || !listElement) {
+    return;
+  }
+
+  const total = results?.total ?? 0;
+  const categories = results?.categories ?? [];
+
+  countElement.textContent = total.toLocaleString();
+  listElement.innerHTML = "";
+
+  if (!categories.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.textContent = total === 0 ? "No locations within radius" : "No category data";
+    listElement.appendChild(emptyItem);
+    return;
+  }
+
+  categories.forEach((category) => {
+    const item = document.createElement("li");
+    const labelSpan = document.createElement("span");
+    const countSpan = document.createElement("span");
+
+    labelSpan.textContent = category.label;
+    countSpan.textContent = category.count.toLocaleString();
+
+    item.appendChild(labelSpan);
+    item.appendChild(countSpan);
+    listElement.appendChild(item);
+  });
+}
+
+// Recalculate radius analysis results using the full dataset
+function updateRadiusAnalysis() {
+  if (!map || !allFeatures || !allFeatures.length) {
+    radiusAnalysisResults = {
+      total: 0,
+      categories: [],
+    };
+    renderRadiusPanelContent(radiusAnalysisResults);
+    return;
+  }
+
+  const centerLatLng = L.latLng(
+    radiusAnalysisConfig.center.lat,
+    radiusAnalysisConfig.center.lng
+  );
+
+  const featuresInRadius = getFeaturesWithinRadius(
+    allFeatures,
+    centerLatLng,
+    radiusAnalysisConfig.radiusMeters
+  );
+
+  radiusAnalysisResults = {
+    total: featuresInRadius.length,
+    categories: calculateRadiusTopCategories(featuresInRadius),
+  };
+
+  renderRadiusPanelContent(radiusAnalysisResults);
+}
+
+// Toggle the visibility of the radius analysis panel
+function toggleRadiusPanel(forceOpen = null) {
+  const panel = document.getElementById("radius-panel");
+  if (!panel) {
+    return;
+  }
+
+  const isHidden = panel.classList.contains("hidden");
+  const shouldOpen = forceOpen === null ? isHidden : forceOpen;
+
+  if (shouldOpen) {
+    panel.classList.remove("hidden");
+    updateRadiusPanelDetails();
+    updateRadiusAnalysis();
+    if (radiusCircle && typeof radiusCircle.bringToFront === 'function') {
+      radiusCircle.bringToFront();
+    }
+    if (radiusCenterMarker && typeof radiusCenterMarker.bringToFront === 'function') {
+      radiusCenterMarker.bringToFront();
+    }
+  } else {
+    panel.classList.add("hidden");
+  }
+}
+
+window.toggleRadiusPanel = toggleRadiusPanel;
+
+// Create the map circle used to visualise the radius analysis
+function initializeRadiusAnalysis() {
+  if (!map) {
+    return;
+  }
+
+  const centerLatLng = L.latLng(
+    radiusAnalysisConfig.center.lat,
+    radiusAnalysisConfig.center.lng
+  );
+
+  if (radiusCircle) {
+    map.removeLayer(radiusCircle);
+  }
+
+  if (radiusCenterMarker) {
+    map.removeLayer(radiusCenterMarker);
+  }
+
+  radiusCircle = L.circle(centerLatLng, {
+    radius: radiusAnalysisConfig.radiusMeters,
+    color: "#0f9d84",
+    weight: 3,
+    opacity: 0.9,
+    dashArray: "6 12",
+    fillColor: "#1abc9c",
+    fillOpacity: 0.05,
+    bubblingMouseEvents: false,
+    className: "radius-circle-outline",
+  });
+
+  radiusCircle.addTo(map);
+  radiusCircle.on("click", () => {
+    toggleRadiusPanel(true);
+    focusRadiusArea();
+  });
+  radiusCircle.bringToBack();
+
+  const radiusMarkerIcon = L.divIcon({
+    className: "radius-marker-icon",
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    html: '<div class="radius-marker-core"></div>',
+  });
+
+  radiusCenterMarker = L.marker(centerLatLng, {
+    draggable: true,
+    icon: radiusMarkerIcon,
+  });
+
+  radiusCenterMarker.addTo(map);
+  
+  // Use setTimeout to ensure marker is fully initialized before calling bringToFront
+  setTimeout(() => {
+    if (radiusCenterMarker && typeof radiusCenterMarker.bringToFront === 'function') {
+      try {
+        radiusCenterMarker.bringToFront();
+      } catch (e) {
+        console.warn("Could not bring radius marker to front:", e);
+      }
+    }
+  }, 100);
+
+  radiusCenterMarker.on("drag", (event) => {
+    const newLatLng = event.target.getLatLng();
+    if (radiusCircle) {
+      radiusCircle.setLatLng(newLatLng);
+    }
+  });
+
+  radiusCenterMarker.on("dragend", (event) => {
+    updateRadiusCenter(event.target.getLatLng());
+  });
+
+  radiusCenterMarker.on("click", () => {
+    toggleRadiusPanel(true);
+    focusRadiusArea();
+  });
+
+  updateRadiusCenter(centerLatLng, { updateLabel: false, runAnalysis: false });
+  setRadiusMeters(radiusAnalysisConfig.radiusMeters);
+}
+
 
 // Function to get boundary styling
 function getBoundaryStyle(level) {
@@ -641,7 +995,7 @@ function toggleCategoryFilter(category) {
     selectedCategories.push(category);
   }
 
-  // Update map and chart
+  // Update map
   updateMapAndChart();
 }
 
@@ -665,7 +1019,7 @@ function filterFeaturesByBoundary(features, boundaryFeature) {
   return filtered;
 }
 
-// Function to update map markers and chart based on selected categories
+// Function to update map markers based on selected categories
 function updateMapAndChart() {
   let filteredCount = 0;
   let currentFeatures = [];
@@ -691,38 +1045,22 @@ function updateMapAndChart() {
     markerClusterGroup.clearLayers();
   }
 
-  // Apply viewport filtering to the filtered features
-  const mapBounds = map.getBounds();
-  const center = map.getCenter();
-  const maxDistance =
-    Math.max(
-      mapBounds.getNorth() - mapBounds.getSouth(),
-      mapBounds.getEast() - mapBounds.getWest()
-    ) * 111000; // Convert degrees to meters (approximate)
-
-  const viewportFilteredFeatures = categoryFilteredFeatures.filter(
-    (feature) => {
-      const coords = feature.geometry.coordinates;
-      const point = L.latLng(coords[1], coords[0]);
-      const distance = center.distanceTo(point);
-      return distance <= maxDistance * 1.5; // Show markers within 1.5x viewport distance
-    }
-  );
+  // Use all filtered features for display (viewport filtering disabled)
+  const featuresForDisplay = categoryFilteredFeatures;
 
   // Group filtered features by category
   const filteredFeaturesByCategory = {};
-  viewportFilteredFeatures.forEach((feature) => {
+  featuresForDisplay.forEach((feature) => {
     const category = feature.properties.categories?.primary || "unknown";
     if (!filteredFeaturesByCategory[category]) {
       filteredFeaturesByCategory[category] = [];
     }
     filteredFeaturesByCategory[category].push(feature);
-    filteredCount++;
   });
 
-  console.log(
-    `Showing ${viewportFilteredFeatures.length} of ${categoryFilteredFeatures.length} filtered features in viewport`
-  );
+  filteredCount = featuresForDisplay.length;
+
+  console.log(`Displaying ${filteredCount} filtered features`);
 
   // Create markers for filtered features only
   Object.entries(filteredFeaturesByCategory).forEach(
@@ -796,9 +1134,6 @@ function updateMapAndChart() {
           .join(", ");
 
   document.getElementById("active-filter").textContent = filterDisplay;
-
-  // Update chart with category-filtered features from current data source
-  updateChart(categoryFilteredFeatures);
 
   // Fit map to filtered markers if any
   if (filteredCount > 0) {
@@ -1087,164 +1422,6 @@ async function toggleBoundary(level) {
   }
 }
 
-// Function to initialize charts
-function initializeCharts(features) {
-  // Count all categories and store globally
-  allCategoryCounts = {};
-  features.forEach((feature) => {
-    const category = feature.properties.categories?.primary || "unknown";
-    allCategoryCounts[category] = (allCategoryCounts[category] || 0) + 1;
-  });
-
-  // Initialize category pie chart
-  categoryChart = echarts.init(document.getElementById("categoryChart"));
-
-  // Add click event to pie chart for toggle functionality
-  categoryChart.on("click", function (params) {
-    const selectedCategory = params.data.category;
-    toggleCategoryFilter(selectedCategory);
-  });
-
-  // Initial chart render
-  updateChart(features);
-
-  // Resize charts when window resizes
-  window.addEventListener("resize", function () {
-    categoryChart.resize();
-  });
-}
-
-// Function to update chart with current data
-function updateChart(features) {
-  // Count categories in current features
-  const categoryCounts = {};
-  features.forEach((feature) => {
-    const category = feature.properties.categories?.primary || "unknown";
-    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-  });
-
-  // Prepare data for pie chart - use only categories that exist in current features
-  const allCategories = Object.entries(categoryCounts)
-    .map(([category, currentCount]) => {
-      const isSelected = selectedCategories.includes(category);
-
-      return {
-        name: category.replace(/_/g, " ").toUpperCase(),
-        value: currentCount,
-        category: category,
-        isSelected: isSelected,
-        opacity: selectedCategories.length === 0 || isSelected ? 1 : 0.3,
-      };
-    })
-    .filter((item) => item.value > 0)
-    .sort((a, b) => b.value - a.value);
-
-  // Use all categories for the pie chart
-  const pieData = allCategories;
-
-  // Calculate total count for center display
-  const totalCount = features.length;
-
-  const pieOption = {
-    tooltip: {
-      trigger: "item",
-      formatter: "{a} <br/>{b}: {c} ({d}%)",
-      position: function (point, params, dom, rect, size) {
-        // Position tooltip under the cursor
-        return [point[0], point[1] + 20];
-      },
-    },
-    legend: {
-      type: 'scroll',
-      orient: 'horizontal',
-      left: 'center',
-      bottom: 5,
-      data: allCategories.map(item => item.name),
-      selectedMode: false, // Disable selection to show all items
-      formatter: function(name) {
-        const category = allCategories.find(item => item.name === name);
-        return `${name}: ${category ? category.value : 0}`;
-      },
-      textStyle: {
-        fontSize: 8
-      },
-      pageButtonItemGap: 3,
-      pageButtonGap: 8,
-      pageFormatter: '{current}/{total}',
-      pageIconColor: '#2c3e50',
-      pageIconInactiveColor: '#aaa',
-      pageIconSize: 10,
-      pageTextStyle: {
-        color: '#333',
-        fontSize: 8
-      }
-    },
-    series: [
-      {
-        name: "Categories",
-        type: "pie",
-        radius: ["30%", "60%"],
-        center: ["50%", "40%"],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 3,
-          borderColor: "#fff",
-          borderWidth: 2,
-        },
-        label: {
-          show: false,
-          position: "center",
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 12,
-            fontWeight: "bold",
-          },
-          itemStyle: {
-            shadowBlur: 8,
-            shadowOffsetX: 0,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
-          },
-        },
-        labelLine: {
-          show: false,
-        },
-        data: pieData.map((item, index) => ({
-          ...item,
-          itemStyle: {
-            color: getChartColors()[index % getChartColors().length],
-            opacity: item.opacity,
-            borderWidth: item.isSelected ? 3 : 2,
-            borderColor: item.isSelected ? "#333" : "#fff",
-          },
-        })),
-      },
-      // Add a second series for the center text
-      {
-        type: "pie",
-        radius: ["0%", "0%"],
-        center: ["50%", "40%"],
-        label: {
-          show: true,
-          position: "center",
-          formatter: function() {
-            return totalCount.toLocaleString();
-          },
-          fontSize: 16,
-          fontWeight: "bold",
-          color: "#2c3e50",
-        },
-        data: [{}],
-        silent: true,
-        itemStyle: {
-          opacity: 0,
-        },
-      },
-    ],
-  };
-  categoryChart.setOption(pieOption, true);
-}
 
 
 // Function to load combined places GeoJSON data
@@ -1270,14 +1447,28 @@ async function loadCombinedPlacesData() {
       spatialIndex.build(allFeatures);
     }
 
-    // Create markers and initialize charts
+    // Count all categories and store globally
+    allCategoryCounts = {};
+    allFeatures.forEach((feature) => {
+      const category = feature.properties.categories?.primary || "unknown";
+      allCategoryCounts[category] = (allCategoryCounts[category] || 0) + 1;
+    });
+
+    // Create markers
     if (allFeatures.length > 0) {
       createMarkers(allFeatures);
-      initializeCharts(allFeatures);
       
       // Update info panel
       document.getElementById("location-count").textContent = allFeatures.length;
       document.getElementById("category-count").textContent = Object.keys(allCategoryCounts).length;
+    }
+
+    // Initialize radius analysis visualisation and data
+    try {
+      initializeRadiusAnalysis();
+    } catch (error) {
+      console.error("❌ Error initializing radius analysis:", error);
+      // Continue loading even if radius analysis fails
     }
 
     // Hide loading indicator
@@ -1305,6 +1496,14 @@ document.addEventListener("DOMContentLoaded", function () {
   console.log("🚀 DOMContentLoaded - initializing map application");
   initializeMap();
   console.log("🗺️ Map initialized");
+
+  const radiusToggleButton = document.getElementById("radius-panel-toggle");
+  if (radiusToggleButton) {
+    radiusToggleButton.addEventListener("click", () => toggleRadiusPanel());
+  }
+
+  setupRadiusSlider();
+  updateRadiusPanelDetails();
 
   // Load combined places data
   loadCombinedPlacesData();

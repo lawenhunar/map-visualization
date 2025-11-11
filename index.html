@@ -51,7 +51,6 @@
         <div class="info-instructions">
           <strong>Instructions:</strong><br />
           • Click on markers to view business details<br />
-          • Use chart segments to filter by category<br />
           • Click on boundary shapes to filter by area
         </div>
       </div>
@@ -61,6 +60,13 @@
         <div id="active-filter">All Categories</div>
         <div id="boundary-filter-info"></div>
         <button onclick="clearFilter()">Clear All Filters</button>
+      </div>
+
+      <div class="radius-controls">
+        <div><strong>Radius Analysis</strong></div>
+        <button id="radius-panel-toggle" type="button">
+          View Radius Insights
+        </button>
       </div>
 
       <div class="boundary-controls">
@@ -114,18 +120,60 @@
         <div class="spinner"></div>
         <p>Loading map data...</p>
       </div>
-    </div>
 
-    <div class="charts-container">
-      <div class="legend-header">Map Legend & Statistics</div>
-      <div class="chart-section">
-        <div class="chart-title">Business Categories Distribution</div>
-        <div class="chart-instructions">
-          <em>💡 Click on chart segments to filter map data by category</em>
+      <div id="radius-panel" class="radius-panel">
+        <div class="radius-panel-header">
+          <div class="radius-panel-title">Radius Analysis</div>
+          <button
+            type="button"
+            class="radius-panel-close"
+            onclick="toggleRadiusPanel(false)"
+          >
+            ×
+          </button>
         </div>
-        <div id="categoryChart" class="chart"></div>
+        <div class="radius-panel-body">
+          <p class="radius-panel-location">
+            <strong>Center:</strong>
+            <span id="radius-panel-center">Slemani Bazar (35.5613, 45.4373)</span>
+          </p>
+          <p>
+            <strong>Radius:</strong>
+            <span id="radius-distance-label">1.5 km</span>
+          </p>
+          <div class="radius-slider-section">
+            <input
+              type="range"
+              id="radius-range"
+              class="radius-slider"
+              min="500"
+              max="5000"
+              step="100"
+              value="1500"
+            />
+            <div class="radius-slider-labels">
+              <span>0.5 km</span>
+              <span>5 km</span>
+            </div>
+          </div>
+          <p class="radius-panel-help">
+            Drag the green radius marker on the map to reposition the center.<br />
+            Use the slider to adjust the radius between 0.5 km and 5 km.
+          </p>
+          <p>
+            <strong>Total Locations:</strong>
+            <span id="radius-location-count">Calculating...</span>
+          </p>
+          <div class="radius-panel-section">
+            <strong>Top Categories:</strong>
+            <ul id="radius-top-categories" class="radius-categories-list">
+              <li>Calculating...</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
+
 
     <!-- Leaflet JavaScript -->
     <script
@@ -141,9 +189,6 @@
     ></script>
     <!-- Fallback to local copy if CDN fails -->
     <script src="libs/leaflet.markercluster.js"></script>
-
-    <!-- Apache ECharts -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
     <script src="dashboard.js?v=2"></script>
   </body>

@@ -152,60 +152,6 @@ body {
   margin: 4px 0;
 }
 
-.charts-container {
-  position: absolute;
-  top: 80px;
-  left: 20px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 350px;
-  height: auto;
-  max-height: calc(100vh - 120px);
-  z-index: 1000;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.chart-section {
-  width: 90%;
-  flex: 1;
-  background: #fafafa;
-  border-radius: 8px;
-  padding: 10px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-}
-
-.chart-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.chart-instructions {
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 10px;
-  text-align: center;
-  padding: 5px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  border-left: 3px solid #2c3e50;
-}
-
-.chart {
-  width: 100%;
-  flex: 1;
-  min-height: 250px;
-}
 
 .filter-controls {
   position: absolute;
@@ -270,6 +216,44 @@ body {
   font-weight: bold;
 }
 
+.radius-controls {
+  position: absolute;
+  top: 380px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  font-size: 12px;
+  width: 250px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.radius-controls div:first-child {
+  font-weight: bold;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #333;
+}
+
+.radius-controls button {
+  background: #1abc9c;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+  transition: background 0.2s ease;
+}
+
+.radius-controls button:hover {
+  background: #16a085;
+}
+
 /* Boundary controls styling */
 .boundary-controls {
   position: absolute;
@@ -315,16 +299,179 @@ body {
   border-radius: 4px;
 }
 
-/* Legend header styling */
-.legend-header {
-  background: #2c3e50;
-  color: white;
-  padding: 8px 10px;
-  margin: -15px -15px 15px -15px;
-  border-radius: 8px 8px 0 0;
-  font-size: 14px;
+
+.radius-panel {
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  width: 280px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  z-index: 1200;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.radius-panel.hidden {
+  transform: translateX(-120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radius-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.radius-panel-title {
+  font-size: 16px;
   font-weight: 600;
-  text-align: center;
+  color: #2c3e50;
+}
+
+.radius-panel-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #7f8c8d;
+  padding: 0;
+}
+
+.radius-panel-close:hover {
+  color: #2c3e50;
+}
+
+.radius-panel-body {
+  font-size: 13px;
+  color: #555;
+}
+
+.radius-panel-body p {
+  margin: 6px 0;
+}
+
+.radius-panel-section {
+  margin-top: 12px;
+}
+
+.radius-categories-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+}
+
+.radius-categories-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.radius-categories-list li:last-child {
+  border-bottom: none;
+}
+
+.radius-panel-help {
+  font-size: 11px;
+  color: #6c757d;
+  line-height: 1.4;
+  margin: 12px 0 10px 0;
+}
+
+.radius-slider-section {
+  margin: 10px 0;
+}
+
+.radius-slider {
+  width: 100%;
+  cursor: pointer;
+}
+
+.radius-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #95a5a6;
+  margin-top: 4px;
+}
+
+.radius-slider-labels span {
+  user-select: none;
+}
+
+@keyframes radiusPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.radius-marker-icon {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 35%, #1abc9c 70%, #109b80 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(26, 188, 156, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  z-index: 1;
+}
+
+.radius-marker-icon::before,
+.radius-marker-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(26, 188, 156, 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0;
+  animation: radiusPulse 2.4s infinite;
+  pointer-events: none;
+}
+
+.radius-marker-icon::after {
+  animation-delay: 1.2s;
+}
+
+.radius-marker-icon .radius-marker-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+}
+
+.radius-marker-icon.leaflet-interactive {
+  cursor: grab;
+}
+
+.radius-marker-icon.leaflet-interactive.leaflet-dragging {
+  cursor: grabbing;
+}
+
+.radius-circle-outline {
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(16, 157, 132, 0.35));
 }
 
 /* Responsive styles for smaller screens */
@@ -346,6 +493,7 @@ body {
 
   .info-panel,
   .filter-controls,
+  .radius-controls,
   .boundary-controls {
     position: relative;
     top: auto;
@@ -358,20 +506,22 @@ body {
     backdrop-filter: none;
   }
 
-  .charts-container {
-    position: relative;
+  .radius-panel {
+    position: fixed;
     top: auto;
-    left: auto;
-    width: calc(100% - 20px);
-    height: 450px;
-    margin: 10px auto;
-    overflow-y: visible;
-    background: white;
-    backdrop-filter: none;
+    bottom: 20px;
+    left: 10px;
+    width: calc(100% - 40px);
+    max-width: 360px;
+    transform: translateY(120%);
   }
 
-  .chart-section {
-    width: 100%;
-    min-height: 250px;
+  .radius-panel.hidden {
+    transform: translateY(120%);
   }
+
+  .radius-panel:not(.hidden) {
+    transform: translateY(0);
+  }
+
 }
