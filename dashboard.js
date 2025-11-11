@@ -1344,9 +1344,14 @@ function updateBoundaryFilterDisplay(feature, level) {
     filterInfo.innerHTML = `
       <div style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
         <strong>Boundary Filter:</strong> ${levelNames[level]} - ${boundaryName}
-        <button onclick="clearBoundaryFilter()" style="margin-left: 10px; padding: 2px 8px; cursor: pointer;">Clear</button>
       </div>
     `;
+  }
+  
+  // Show the clear boundary filter button
+  const clearBoundaryBtn = document.getElementById("clear-boundary-btn");
+  if (clearBoundaryBtn) {
+    clearBoundaryBtn.style.display = "block";
   }
 }
 
@@ -1365,9 +1370,18 @@ function clearBoundaryFilter() {
     filterInfo.innerHTML = "";
   }
   
+  // Hide the clear boundary filter button
+  const clearBoundaryBtn = document.getElementById("clear-boundary-btn");
+  if (clearBoundaryBtn) {
+    clearBoundaryBtn.style.display = "none";
+  }
+  
   // Update map
   updateMapAndChart();
 }
+
+// Expose clearBoundaryFilter to global scope
+window.clearBoundaryFilter = clearBoundaryFilter;
 
 // Function to toggle boundary layer (now handles radio button behavior)
 async function toggleBoundary(level) {
