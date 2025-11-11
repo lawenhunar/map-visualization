@@ -440,12 +440,13 @@ body {
 
 .radius-marker-icon {
   position: relative;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 35%, #1abc9c 70%, #109b80 100%);
   border-radius: 50%;
   box-shadow: 0 0 12px rgba(26, 188, 156, 0.65);
   border: 2px solid rgba(255, 255, 255, 0.95);
+  box-sizing: border-box;
   z-index: 1;
 }
 
@@ -455,8 +456,8 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border: 2px solid rgba(26, 188, 156, 0.5);
   border-radius: 50%;
   transform: translate(-50%, -50%) scale(1);

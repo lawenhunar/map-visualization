@@ -725,8 +725,8 @@ function initializeRadiusAnalysis() {
 
   const radiusMarkerIcon = L.divIcon({
     className: "radius-marker-icon",
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
     html: '<div class="radius-marker-core"></div>',
   });
 
